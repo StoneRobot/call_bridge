@@ -38,7 +38,7 @@
 #include <iostream>
 #include <cmath>
 
-class CallBridge
+class CallBridge 
 {
 public:
     CallBridge(ros::NodeHandle _n, moveit::planning_interface::MoveGroupInterface& group, std::string name);
@@ -75,6 +75,7 @@ private:
     ros::ServiceClient stop_gripper_client;
     // photo
     ros::Subscriber photo_sub;
+    ros::Publisher pick_pose_pub;
     void photoCallback(const std_msgs::Bool::ConstPtr& msg);
     // init
     bool setGripper();
@@ -82,10 +83,10 @@ private:
     bool setDetector();
     bool placeObject(hirop_msgs::Place place_srv);
 
-    void orientationConstraint(moveit_msgs::OrientationConstraint ocm);
-    void clearPathConstraints();
+    void showObject(geometry_msgs::Pose pose);
 
-    void place(hirop_msgs::Place place_pose);
+    void pick(geometry_msgs::Pose pose);
+    void place(geometry_msgs::Pose pose);
     void openGripper(trajectory_msgs::JointTrajectory& posture);
     void closedGripper(trajectory_msgs::JointTrajectory& posture);
 
@@ -100,13 +101,14 @@ private:
     int intent = 1;
     int object = 1;
     int target = 1;
+    bool command = false;
     int place_pose_flag = 0;
     hirop_msgs::Place place_pose1;
     hirop_msgs::Place place_pose2;
     hirop_msgs::Place place_pose3;
     hirop_msgs::MoveToName pose_name;
 
-    // std::vector<hirop_msgs::Place> place_pose_vet;
+    std::vector<hirop_msgs::Place> place_poses;
     
     
 };

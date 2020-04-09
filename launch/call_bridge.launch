@@ -5,7 +5,9 @@
     <node pkg="call_bridge" type="call_bridge" name="call_bridge" output="screen">
         <param name="hand" type="str" value="arm" />
         <param name="intent" type="int" value="1" />
-        <param name="place_pose" type="int" value="2" />
-        <param name="Pose1" type="str" value="$(arg Pose)" />
+        <param name="target" type="int" value="2" />
+        <param name="effective_command" type="bool" value="false" />
+        <!--<param name="place_pose" type="int" value="2" />-->
+        <!--<param name="Pose1" type="str" value="$(arg Pose)" />-->
     </node>
 </launch>

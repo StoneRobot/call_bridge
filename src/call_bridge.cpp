@@ -39,6 +39,7 @@ PLANNING_GROUP{name}
     stop_gripper_client = nh.serviceClient<hirop_msgs::StopGripper>("stopGripper");
     // photo
     photo_sub = nh.subscribe("photo", 1, &CallBridge::photoCallback, this);
+    pick_pose_pub = nh.advertise<geometry_msgs::Pose>("pick_pose", 1);
 
     // init
     // if(setGripper())
@@ -69,7 +70,7 @@ PLANNING_GROUP{name}
     place_pose2.request.placePos.header.frame_id = "base_link";
     place_pose2.request.placePos.pose.position.x = 0.418;
     place_pose2.request.placePos.pose.position.y = -0.68;
-    place_pose2.request.placePos.pose.position.z = 0.30;
+    place_pose2.request.placePos.pose.position.z = 0.32;
     place_pose2.request.placePos.pose.orientation = tf2::toMsg(orien);
 
     place_pose3.request.placePos.header.frame_id = "base_link";
@@ -81,13 +82,9 @@ PLANNING_GROUP{name}
     place_pose3.request.placePos.pose.orientation.z = 0;
     place_pose3.request.placePos.pose.orientation.w = 1;
 
-    // place_pose3.request.placePos.pose
-
-
-    // place_pose2.request.placePos.pose.orientation.x = 0.0;
-    // place_pose2.request.placePos.pose.orientation.y = 0.0;
-    // place_pose2.request.placePos.pose.orientation.z = 0.0;
-    // place_pose2.request.placePos.pose.orientation.w = 1;
+    place_poses.push_back(place_pose1);
+    place_poses.push_back(place_pose2);
+    place_poses.push_back(place_pose3);
 
 
     pose_name.request.PosName = "home";
@@ -143,91 +140,78 @@ void CallBridge::actionDataCallback(const std_msgs::Int32MultiArray::ConstPtr &m
     }
 }
 
-void CallBridge::orientationConstraint(moveit_msgs::OrientationConstraint ocm)
-{
-    moveit_msgs::Constraints orientation_constraints;
-    orientation_constraints.orientation_constraints.push_back(ocm);
-    this->move_group.setPathConstraints(orientation_constraints);
-    robot_state::RobotState start_state(*move_group.getCurrentState());
-    // geometry_msgs::Pose start_pose;
-    // start_pose = this->move_group.getCurrentPose("link6").pose;
-    // this->move_group.setStartState(start_pose);
-    // this->move_group.setPlanningTime(10.0);
-}
+// void CallBridge::orientationConstraint(moveit_msgs::OrientationConstraint ocm)
+// {
+//     moveit_msgs::Constraints orientation_constraints;
+//     orientation_constraints.orientation_constraints.push_back(ocm);
+//     this->move_group.setPathConstraints(orientation_constraints);
+//     robot_state::RobotState start_state(*move_group.getCurrentState());
+//     // geometry_msgs::Pose start_pose;
+//     // start_pose = this->move_group.getCurrentPose("link6").pose;
+//     // this->move_group.setStartState(start_pose);
+//     // this->move_group.setPlanningTime(10.0);
+// }
 
-void CallBridge::clearPathConstraints()
+// void CallBridge::clearPathConstraints()
+// {
+//     this->move_group.clearPathConstraints();
+//     // this->move_group.setStartStateToCurrentState();
+// }
+
+void CallBridge::showObject(geometry_msgs::Pose pose)
 {
-    this->move_group.clearPathConstraints();
-    // this->move_group.setStartStateToCurrentState();
+    hirop_msgs::ShowObject srv;
+    // tf2::Quaternion orientation;
+    // orientation.setRPY(0, 0, -M_PI / 2);
+    // ROS_INFO_STREAM(tf2::toMsg(orientation));
+    srv.request.objPose.header.frame_id = "base_link";
+    srv.request.objPose.pose.position.x = pose.position.x;
+    srv.request.objPose.pose.position.y = pose.position.y;
+    srv.request.objPose.pose.position.z = pose.position.z;
+    srv.request.objPose.pose.orientation.x = pose.orientation.x;
+    srv.request.objPose.pose.orientation.y = pose.orientation.y;
+    srv.request.objPose.pose.orientation.z = pose.orientation.z;
+    srv.request.objPose.pose.orientation.w = pose.orientation.w;
+    // srv.request.objPose.pose.orientation = tf2::toMsg(orientation);
+    if(show_object_client.call(srv))
+    {
+        ROS_INFO_STREAM("show object "<< (srv.response.isSetFinsh ? "Succeed" : "Faild"));
+    }
+    else
+    {
+        ROS_INFO("check \\showObject service ");
+    }
 }
 
 void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
 {
-
+    nh.getParam("/call_bridge/intent", intent);
+    nh.getParam("/call_bridge/target", target);
+    nh.getParam("/call_bridge/effective_command", command);
     move_group.setPlanningTime(10.0);
-    move_group.setGoalPositionTolerance(0.01);
-    move_group.setGoalPositionTolerance(0.01);
     move_group.allowReplanning(true);
-    move_group.setMaxVelocityScalingFactor(1);
+    move_group.setMaxVelocityScalingFactor(0.4);
     int i = msg->objects.size();
+    if(command == true)
     for(int j = 0; j < i; ++j)
     {    
-        // show object
-        hirop_msgs::ShowObject show_object_srv;
-        show_object_srv.request.objPose = msg->objects[j].pose;
-        if(this->show_object_client.call(show_object_srv))
-        {
-            ROS_INFO_STREAM("show object "<< (show_object_srv.response.isSetFinsh ? "Succeed" : "Faild"));
-        }
-        else
-        {
-            ROS_INFO("check \\showObject service ");
-        }
-
+        // 显示object
+        showObject(msg->objects[j].pose.pose);
+        // 获取参数
         nh.getParam("/call_bridge/intent", intent);
+        nh.getParam("/call_bridge/target", target);
         if(intent == 1)
         {
-            moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
-            //
-            // 接下来获取规划组的当前关节角度值数据集。
-            std::vector<double> joint_group_positions;
-            current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
-            // 现在，让我们修改一个关节，计划到新的关节空间目标，并可视化计划。
-            // float tan = (msg->objects[j].pose.pose.position.y/msg->objects[j].pose.pose.position.x);
-            joint_group_positions[0] = 0;
-            joint_group_positions[1] = -1.91;
-            joint_group_positions[2] = 3.45;
-            joint_group_positions[3] = -1.51;
-            joint_group_positions[4] = 1.48;
-            joint_group_positions[5] = 0; 
-            ROS_INFO_STREAM(joint_group_positions[0]);
-            move_group.setJointValueTarget(joint_group_positions);
-            auto success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-            if(success)
-                move_group.move();
-            moveit_msgs::OrientationConstraint ocm;
-            ocm.orientation = this->move_group.getCurrentPose("link6").pose.orientation;
-            ocm.header.frame_id = "base_link";
-            ocm.link_name = "link6";
-            ocm.absolute_x_axis_tolerance = 0.01;
-            ocm.absolute_y_axis_tolerance = 0.01;
-            ocm.absolute_z_axis_tolerance = 0.01;
-            ocm.weight = 1;
-            orientationConstraint(ocm);
-            // geometry_msgs::PoseStamped pose1;
-            // pose1 = msg->objects[j].pose;
-            // pose1.pose.position.x *= 0.8;
-            // pose1.pose.position.y *= 0.8;
-            // // pose1.pose.position.z
-            // move_group.setPoseTarget(pose1);
-            // bool success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-            // if(success)
-            //     move_group.move();
+            geometry_msgs::Pose pose;
+            pose = msg->objects[0].pose.pose;
+            tf2::Quaternion orientation;
+            orientation.setRPY(0, 0, -1.57);
+            pose.orientation = tf2::toMsg(orientation);
+            pick(pose);
+            ros::WallDuration(1.0).sleep();
         }
-
-        if(intent == 0)
+        else if(intent == 0)
         {
-
             // 直线去抓取object
             // 从现在位置
             move_group.setPoseReferenceFrame("base_link");
@@ -247,6 +231,7 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             target_finish.orientation.y = 0.254;
             target_finish.orientation.z = 0;
             target_finish.orientation.w = 0.967;
+
             waypoints.push_back(target_finish);
             ROS_INFO_STREAM("target_finish: " << target_finish);
 
@@ -256,7 +241,6 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             moveit_msgs::RobotTrajectory trajectory;
             double jump_threshold = 0.0;
             double eef_step = 0.02;
-
             double fraction = 0;
             int cnt = 0;
             while (fraction < 1.0 && cnt < 100)
@@ -268,25 +252,24 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             my_plan.trajectory_ = trajectory;
             // 运动
             move_group.execute(my_plan);
+            // to pick
+            hirop_msgs::Pick pick;
+            pick.request.pickPos = msg->objects[j].pose;
+            // 自定义
+            // this->pick(pick);
+            // 调用桥
+            if(pick_client.call(pick))
+            {
+                ROS_INFO_STREAM("pick "<< (pick.response.isPickFinsh ? "Succeed" : "Faild"));
+            }
+            else
+            {
+                ROS_INFO("check \\pick service");
+                this->mvoe_to_name_client.call(pose_name);
+                return;
+            }
         }
-        
-        // to pick
-        hirop_msgs::Pick pick;
-        pick.request.pickPos = msg->objects[j].pose;
-        if(pick_client.call(pick))
-        {
-            ROS_INFO_STREAM("pick "<< (pick.response.isPickFinsh ? "Succeed" : "Faild"));
-        }
-        else
-        {
-            ROS_INFO("check \\pick service");
-            this->mvoe_to_name_client.call(pose_name);
-            if(intent == 1)
-                clearPathConstraints();
-            return;
-        }
-        if(intent == 1)
-            clearPathConstraints();
+
         // back home
         ROS_INFO("back home...");
         this->mvoe_to_name_client.call(pose_name);
@@ -294,148 +277,155 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
 
         // place
         hirop_msgs::Place place_pose;
-        nh.getParam("/call_bridge/place_pose", place_pose_flag);
-        if(place_pose_flag == 0)
-        {
-            place_pose = this->place_pose1;
-        }
-        else if(place_pose_flag == 1)
-        {
-            place_pose = this->place_pose2;
-        }
-        else if(place_pose_flag == 2)
-        {
-            place_pose = this->place_pose3;
-        }
-        ROS_INFO_STREAM("place: " << place_pose.request.placePos.pose << " " << place_pose_flag);
+        place_pose = place_poses[target];
+        ROS_INFO_STREAM("place: " << place_pose.request.placePos.pose << " " << target);
+
         // waypoints.clear();
         // geometry_msgs::Pose target2_pose = move_group.getCurrentPose(move_group.getEndEffectorLink().c_str()).pose;
         // target2_pose.position.z -= 1.0;
         // ROS_INFO_STREAM("target2_pose: " << target2_pose);
         // waypoints.push_back(target2_pose);
 
-        // target2_pose = this->place_pose1.request.placePos.pose;
+        // target2_pose = place_pose.request.placePos.pose;
         // target2_pose.position.x *= 0.8;
         // target2_pose.position.y *= 0.8;
-        // target2_pose.position.z *= 1.05;
+        // target2_pose.position.z *= 1.1;
         // ROS_INFO_STREAM("target2_pose: " << target2_pose);
         // waypoints.push_back(target2_pose);
 
-        // eef_step = 0.001;
+        // eef_step = 0.01;
         // jump_threshold = 0.0;
         // fraction = move_group.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
         // my_plan.trajectory_ = trajectory;
         // ROS_INFO_STREAM( "waypoints "<<waypoints.size()<<" "<<fraction);
         // move_group.execute(my_plan);
 
-        // geometry_msgs::Pose now_pose = move_group.getCurrentPose(move_group.getEndEffectorLink()).pose;
-
-        // place_pose.request.placePos.pose.orientation = now_pose.orientation;
-
-        // place(place_pose);
-        // hirop_msgs::openGripper op;
-        // this->open_gripper_client.call(op);
+        // 调用桥
         if(!this->placeObject(place_pose))
         {
-            place_pose.request.placePos.pose = pick.request.pickPos.pose;
+            place_pose.request.placePos.pose = msg->objects[j].pose.pose;
             this->placeObject(place_pose);
         }
-
         this->mvoe_to_name_client.call(pose_name);
+        nh.setParam("/call_bridge/effective_command", false);
     }
 }
 
-void CallBridge::place(hirop_msgs::Place place_pose)
-{
-  // BEGIN_SUB_TUTORIAL place
-  // TODO(@ridhwanluthra) - Calling place function may lead to "All supplied place locations failed. Retrying last
-  // location in
-  // verbose mode." This is a known issue and we are working on fixing it. |br|
-  // Create a vector of placings to be attempted, currently only creating single place location.
-  std::vector<moveit_msgs::PlaceLocation> place_location;
-  place_location.resize(1);
-
-  // Setting place location pose
-  // +++++++++++++++++++++++++++
-  place_location[0].place_pose.header.frame_id = "base_link";
-
-  place_location[0].place_pose.pose = place_pose.request.placePos.pose;
-
-  // Setting pre-place approach
-  // ++++++++++++++++++++++++++
-  /* Defined with respect to frame_id */
-  place_location[0].pre_place_approach.direction.header.frame_id = "base_link";
-  /* Direction is set as negative z axis */
-  place_location[0].pre_place_approach.direction.vector.x = -place_pose.request.placePos.pose.orientation.x;
-  place_location[0].pre_place_approach.direction.vector.y = -place_pose.request.placePos.pose.orientation.y;
-  place_location[0].pre_place_approach.direction.vector.z = -place_pose.request.placePos.pose.orientation.z;
-
-  place_location[0].pre_place_approach.min_distance = 0.04;
-  place_location[0].pre_place_approach.desired_distance = 0.215;
-
-  // Setting post-grasp retreat
-  // ++++++++++++++++++++++++++
-  /* Defined with respect to frame_id */
-  place_location[0].post_place_retreat.direction.header.frame_id = "base_link";
-  /* Direction is set as negative y axis */
-  place_location[0].post_place_retreat.direction.vector.x = place_pose.request.placePos.pose.orientation.x;
-  place_location[0].post_place_retreat.direction.vector.y = place_pose.request.placePos.pose.orientation.y;
-  place_location[0].post_place_retreat.direction.vector.z = place_pose.request.placePos.pose.orientation.z;
-  place_location[0].post_place_retreat.min_distance = 0.1;
-  place_location[0].post_place_retreat.desired_distance = 0.25;
-
-  // Setting posture of eef after placing object
-  // +++++++++++++++++++++++++++++++++++++++++++
-  /* Similar to the pick case */
-//   openGripper(place_location[0].post_place_posture);
-
-  // Set support surface as table2.
-//   move_group.setSupportSurfaceName("shelf");
-  // Call place to place the object using the place locations given.
-  move_group.place("object", place_location);
-  // END_SUB_TUTORIAL
-}
-
-
 void CallBridge::openGripper(trajectory_msgs::JointTrajectory& posture)
 {
-  // BEGIN_SUB_TUTORIAL open_gripper
-  /* Add both finger joints of panda robot. */
-  posture.joint_names.resize(4);
-  posture.joint_names[0] = "left_finger_1_link";
-  posture.joint_names[1] = "left_finger_2_link";
-  posture.joint_names[2] = "right_finger_1_link";
-  posture.joint_names[3] = "right_finger_2_link";
-  /* Set them as open, wide enough for the object to fit. */
+  posture.joint_names.resize(2);
+  posture.joint_names[0] = "left_finger_1_joint";
+  posture.joint_names[1] = "right_finger_1_joint";
   posture.points.resize(1);
-  posture.points[0].positions.resize(4);
-  posture.points[0].positions[0] = 0.2;
-  posture.points[0].positions[1] = 0.2;  
-  posture.points[0].positions[2] = 0.2;
-  posture.points[0].positions[3] = 0.2;
+  posture.points[0].positions.resize(2);
+  posture.points[0].positions[0] = 0.6;
+  posture.points[0].positions[1] = -0.6;  
   posture.points[0].time_from_start = ros::Duration(0.5);
-  // END_SUB_TUTORIAL
 }
 
 void CallBridge::closedGripper(trajectory_msgs::JointTrajectory& posture)
 {
-  // BEGIN_SUB_TUTORIAL closed_gripper
-  /* Add both finger joints of panda robot. */
-  posture.joint_names.resize(4);
-  posture.joint_names[0] = "left_finger_1_link";
-  posture.joint_names[1] = "left_finger_2_link";
-  posture.joint_names[2] = "right_finger_1_link";
-  posture.joint_names[3] = "right_finger_2_link";
-  /* Set them as open, wide enough for the object to fit. */
+  posture.joint_names.resize(2);
+  posture.joint_names[0] = "left_finger_1_joint";
+  posture.joint_names[1] = "right_finger_1_joint";
   posture.points.resize(1);
-  posture.points[0].positions.resize(4);
+  posture.points[0].positions.resize(2);
   posture.points[0].positions[0] = 0;
   posture.points[0].positions[1] = 0;  
-  posture.points[0].positions[2] = 0;
-  posture.points[0].positions[3] = 0;
   posture.points[0].time_from_start = ros::Duration(0.5);
-  // END_SUB_TUTORIAL
+
 }
+
+void CallBridge::pick(geometry_msgs::Pose pose)
+{
+  std::vector<moveit_msgs::Grasp> grasps;
+  grasps.resize(1);
+  // 抓取姿态
+  grasps[0].grasp_pose.header.frame_id = "base_link";
+  // tf2::Quaternion orientation;
+  // orientation.setRPY(0, 0, -M_PI / 2);
+  // grasps[0].grasp_pose.pose.orientation = tf2::toMsg(orientation);
+  grasps[0].grasp_pose.pose.orientation.x = pose.orientation.x;
+  grasps[0].grasp_pose.pose.orientation.y = pose.orientation.y;
+  grasps[0].grasp_pose.pose.orientation.z = pose.orientation.z;
+  grasps[0].grasp_pose.pose.orientation.w = pose.orientation.w;
+  grasps[0].grasp_pose.pose.position.x = pose.position.x;
+  grasps[0].grasp_pose.pose.position.y = pose.position.y;
+  grasps[0].grasp_pose.pose.position.z = pose.position.z;
+  // 发送pick的位置信息
+  pick_pose_pub.publish(grasps[0].grasp_pose.pose);
+  // 抓取方向
+  grasps[0].pre_grasp_approach.direction.header.frame_id = "base_link";
+
+  grasps[0].pre_grasp_approach.direction.vector.y = -1;
+
+  grasps[0].pre_grasp_approach.min_distance = 0.055;
+  grasps[0].pre_grasp_approach.desired_distance = 0.5;
+  // 撤退方向
+  grasps[0].post_grasp_retreat.direction.header.frame_id = "base_link";
+
+  grasps[0].post_grasp_retreat.direction.vector.y = 1;
+
+  grasps[0].post_grasp_retreat.min_distance = 0.20;
+  grasps[0].post_grasp_retreat.desired_distance = 0.35;
+  // 模拟关闭夹爪
+  openGripper(grasps[0].pre_grasp_posture);
+  closedGripper(grasps[0].grasp_posture);
+  // 动作
+  move_group.pick("object", grasps);
+}
+
+// void CallBridge::place(geometry_msgs::Pose pose, float pre_vec[], float back_vec[])
+// {
+
+//   std::vector<moveit_msgs::PlaceLocation> place_location;
+//   place_location.resize(1);
+//   // 抓取位置
+//   place_location[0].place_pose.header.frame_id = "base_link";
+//   // tf2::Quaternion orientation;
+//   // orientation.setRPY(0, 0, 0);
+//   // place_location[0].place_pose.pose.orientation = tf2::toMsg(orientation);
+//   place_location[0].place_pose.pose.orientation.x = pose.orientation.x;
+//   place_location[0].place_pose.pose.orientation.y = pose.orientation.y;
+//   place_location[0].place_pose.pose.orientation.z = pose.orientation.z;
+//   place_location[0].place_pose.pose.orientation.w = pose.orientation.w;
+//   place_location[0].place_pose.pose.position.x = pose.position.x;
+//   place_location[0].place_pose.pose.position.y = pose.position.y;
+//   place_location[0].place_pose.pose.position.z = pose.position.z;
+//   // 发送放置的位置信息
+//   place_pose_pub.publish(place_location[0].place_pose.pose);
+//   // 放置方向
+//   place_location[0].pre_place_approach.direction.header.frame_id = "base_link";
+
+// // place_location[0].pre_place_approach.direction.vector.x = 1;
+// //   place_location[0].pre_place_approach.direction.vector.x = 1;
+// //   place_location[0].pre_place_approach.direction.vector.y = pre_vec[1];
+// // 不同的
+//     if(intent == 0)
+//     {
+//         place_location[0].pre_place_approach.direction.vector.y = -1; 
+//         place_location[0].post_place_retreat.direction.vector.y = 1;
+//     }
+//     else if(intent == 1)
+//     {
+//         place_location[0].pre_place_approach.direction.vector.z = -1; 
+//         place_location[0].post_place_retreat.direction.vector.z = 1;
+//     }  
+//   place_location[0].pre_place_approach.min_distance = 0.095;
+//   place_location[0].pre_place_approach.desired_distance = 0.115;
+//   // 撤退方向
+//   place_location[0].post_place_retreat.direction.header.frame_id = "base_link";
+// //   place_location[0].post_place_retreat.direction.vector.x = back_vec[0];
+// //   place_location[0].post_place_retreat.direction.vector.y = back_vec[1];
+
+        
+//   place_location[0].post_place_retreat.min_distance = 0.1;
+//   place_location[0].post_place_retreat.desired_distance = 0.25;
+//   // 模拟打开夹爪
+//   openGripper(place_location[0].post_place_posture);
+//   // 抓取动作
+//   move_group.place("object", place_location);
+// }
 
 bool CallBridge::placeObject(hirop_msgs::Place place_srv)
 {
