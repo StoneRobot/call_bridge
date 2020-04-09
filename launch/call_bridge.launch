@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="Pose" default="$(find call_bridge)/cfg/Pose1.yaml" />
+    <node pkg="call_bridge" type="call_bridge" name="call_bridge" output="screen">
+        <param name="hand" type="str" value="arm" />
+        <param name="intent" type="int" value="1" />
+        <param name="place_pose" type="int" value="2" />
+        <param name="Pose1" type="str" value="$(arg Pose)" />
+    </node>
+</launch>

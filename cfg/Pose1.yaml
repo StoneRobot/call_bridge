@@ -1,0 +1,13 @@
+parameters: 
+  placePose:
+    frame_id: base_link
+  pose:
+    position:
+      x: 0.418
+      y: -0.65
+      z: 0.60
+    orientation:
+      x: 0.008
+      y: 0.007
+      z: -0.686
+      w: 0.727
