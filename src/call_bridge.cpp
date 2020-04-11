@@ -307,7 +307,8 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             this->placeObject(place_pose);
         }
         this->mvoe_to_name_client.call(pose_name);
-        nh.setParam("/call_bridge/effective_command", false);
+        // nh.setParam("/call_bridge/effective_command", false);
+        nh.setParam("/call_bridge/over", true);
     }
 }
 
