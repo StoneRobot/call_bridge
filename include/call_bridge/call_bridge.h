@@ -101,6 +101,8 @@ private:
     int intent = 1;
     int object = 1;
     int target = 1;
+    int cnt = 0;
+    int errorCnt = 0;
     bool command = false;
     int place_pose_flag = 0;
     hirop_msgs::Place place_pose1;

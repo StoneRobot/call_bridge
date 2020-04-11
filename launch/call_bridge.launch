@@ -8,6 +8,8 @@
         <param name="target" type="int" value="2" />
         <param name="effective_command" type="bool" value="false" />
         <param name="over" type="bool" value="true" />
+        <param name="cnt" type="int" value="0" />
+        <param name="error_cnt" type="int" value="0" />
         <!--<param name="place_pose" type="int" value="2" />-->
         <!--<param name="Pose1" type="str" value="$(arg Pose)" />-->
     </node>

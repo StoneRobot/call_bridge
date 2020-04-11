@@ -190,12 +190,13 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
     nh.getParam("/call_bridge/effective_command", command);
     move_group.setPlanningTime(10.0);
     move_group.allowReplanning(true);
-    move_group.setMaxVelocityScalingFactor(0.1);
+    move_group.setMaxVelocityScalingFactor(0.2);
     int i = msg->objects.size();
     // if(command == true)
     for(int j = 0; j < i; ++j)
     {    
         // 显示object
+        cnt ++;
         showObject(msg->objects[j].pose.pose);
         // 获取参数
         nh.getParam("/call_bridge/intent", intent);
@@ -265,50 +266,35 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             else
             {
                 ROS_INFO("check \\pick service");
-                this->mvoe_to_name_client.call(pose_name);
-                return;
+                // this->mvoe_to_name_client.call(pose_name);
+                // return;
             }
         }
 
         // back home
-        ROS_INFO("back home...");
-        this->mvoe_to_name_client.call(pose_name);
-        ROS_INFO("at home");
+        // ROS_INFO("back home...");
+        // this->mvoe_to_name_client.call(pose_name);
+        // ROS_INFO("at home");
 
         // place
         hirop_msgs::Place place_pose;
         place_pose = place_poses[target];
         ROS_INFO_STREAM("place: " << place_pose.request.placePos.pose << " " << target);
 
-        // waypoints.clear();
-        // geometry_msgs::Pose target2_pose = move_group.getCurrentPose(move_group.getEndEffectorLink().c_str()).pose;
-        // target2_pose.position.z -= 1.0;
-        // ROS_INFO_STREAM("target2_pose: " << target2_pose);
-        // waypoints.push_back(target2_pose);
 
-        // target2_pose = place_pose.request.placePos.pose;
-        // target2_pose.position.x *= 0.8;
-        // target2_pose.position.y *= 0.8;
-        // target2_pose.position.z *= 1.1;
-        // ROS_INFO_STREAM("target2_pose: " << target2_pose);
-        // waypoints.push_back(target2_pose);
-
-        // eef_step = 0.01;
-        // jump_threshold = 0.0;
-        // fraction = move_group.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
-        // my_plan.trajectory_ = trajectory;
-        // ROS_INFO_STREAM( "waypoints "<<waypoints.size()<<" "<<fraction);
-        // move_group.execute(my_plan);
 
         // 调用桥
         if(!this->placeObject(place_pose))
         {
             place_pose.request.placePos.pose = msg->objects[j].pose.pose;
             this->placeObject(place_pose);
+            errorCnt ++;
         }
         this->mvoe_to_name_client.call(pose_name);
         // nh.setParam("/call_bridge/effective_command", false);
         nh.setParam("/call_bridge/over", true);
+        nh.setParam("/call_bridge/cnt", cnt);
+        nh.setParam("/call_bridge/error_cnt", errorCnt);
     }
 }
 
