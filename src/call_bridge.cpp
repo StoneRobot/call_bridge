@@ -190,9 +190,9 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
     nh.getParam("/call_bridge/effective_command", command);
     move_group.setPlanningTime(10.0);
     move_group.allowReplanning(true);
-    move_group.setMaxVelocityScalingFactor(0.4);
+    move_group.setMaxVelocityScalingFactor(0.1);
     int i = msg->objects.size();
-    if(command == true)
+    // if(command == true)
     for(int j = 0; j < i; ++j)
     {    
         // 显示object
