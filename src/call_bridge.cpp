@@ -210,9 +210,9 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             pose.orientation = tf2::toMsg(orientation);
             pick(pose);
             ros::WallDuration(1.0).sleep();
+            this->mvoe_to_name_client.call(pose_name);
         }
-        else if(intent == 0)
-        {
+
             // 直线去抓取object
             // 从现在位置
             move_group.setPoseReferenceFrame("base_link");
@@ -223,7 +223,8 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             waypoints.push_back(target_pose2);
 
             // 到预抓取位置
-            geometry_msgs::Pose target_finish = msg->objects[j].pose.pose;
+            // geometry_msgs::Pose target_finish = msg->objects[j].pose.pose;
+            geometry_msgs::Pose target_finish = place_poses[target].request.placePos.pose;
             target_finish.position.x *= 0.85;
             target_finish.position.y *= 0.85;
             target_finish.position.z *= 1;
@@ -259,6 +260,7 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
             // 自定义
             // this->pick(pick);
             // 调用桥
+            if(intent == 0)
             if(pick_client.call(pick))
             {
                 ROS_INFO_STREAM("pick "<< (pick.response.isPickFinsh ? "Succeed" : "Faild"));
@@ -269,7 +271,7 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
                 // this->mvoe_to_name_client.call(pose_name);
                 // return;
             }
-        }
+
 
         // back home
         // ROS_INFO("back home...");
@@ -281,17 +283,52 @@ void CallBridge::poseCallback(const hirop_msgs::ObjectArray::ConstPtr &msg)
         place_pose = place_poses[target];
         ROS_INFO_STREAM("place: " << place_pose.request.placePos.pose << " " << target);
 
+        
+        move_group.setPoseReferenceFrame("base_link");
+        geometry_msgs::Pose t_pose;
+        // t_pose = place_pose.request.placePos.pose;
+        // ROS_INFO("to pose 1");
+        // t_pose.position.x *= 0.85;
+        // t_pose.position.y *= 0.85;
+        // t_pose.position.z *= 1.05;
+        // t_pose.orientation.x = 0;
+        // t_pose.orientation.y = 0.254;
+        // t_pose.orientation.z = 0;
+        // t_pose.orientation.w = 0.967;
+        // move_group.setPoseTarget(t_pose);
+        // move_group.plan(my_plan);
+        // move_group.move();
+
+        ROS_INFO("to pose 2");
+        t_pose = place_pose.request.placePos.pose;
+        move_group.setPoseTarget(t_pose);
+        move_group.plan(my_plan);
+        move_group.move();
+
+        // ROS_INFO("to pose 3");
+        // t_pose.position.x *= 0.85;
+        // t_pose.position.y *= 0.85;
+        // t_pose.position.z *= 1.05;
+        // t_pose.orientation.x = 0;
+        // t_pose.orientation.y = 0.254;
+        // t_pose.orientation.z = 0;
+        // t_pose.orientation.w = 0.967;
+        // move_group.setPoseTarget(t_pose);
+        // move_group.plan(my_plan);
+        // move_group.move();
+        ROS_INFO("back_home");
+
 
 
         // 调用桥
-        if(!this->placeObject(place_pose))
-        {
-            place_pose.request.placePos.pose = msg->objects[j].pose.pose;
-            this->placeObject(place_pose);
-            errorCnt ++;
-        }
+        // if(!this->placeObject(place_pose))
+        // {
+        //     place_pose.request.placePos.pose = msg->objects[j].pose.pose;
+        //     this->placeObject(place_pose);
+        //     errorCnt ++;
+        // }
         this->mvoe_to_name_client.call(pose_name);
-        // nh.setParam("/call_bridge/effective_command", false);
+        nh.setParam("/call_bridge/effective_command", false);
         nh.setParam("/call_bridge/over", true);
         nh.setParam("/call_bridge/cnt", cnt);
         nh.setParam("/call_bridge/error_cnt", errorCnt);
